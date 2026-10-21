@@ -1,0 +1,301 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   Utilidades del mockup que daisyUI no incluye.
+   Contratos compartidos con los Integrantes 2, 3 y 4:
+   .book-cover, .receipt, .barcode y .print-only se usan en sus vistas.
+--------------------------------------------------------------------------- */
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+
+.on-dark :focus-visible {
+  outline-color: #fcd34d;
+}
+
+/* Navegación del sidebar: replicación exacta del mockup */
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #94a3b8;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+  cursor: pointer;
+}
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+/* El selector con `li >` iguala la especificidad del estilo .active de daisyUI menu. */
+.nav-link.active,
+.menu li > .nav-link.active {
+  background: #0f766e;
+  color: #fff;
+  box-shadow: 0 10px 20px -14px rgba(15, 118, 110, 0.9);
+}
+.nav-link svg {
+  width: 1.15rem;
+  height: 1.15rem;
+  flex-shrink: 0;
+  color: #64748b;
+  transition: color 150ms ease;
+}
+.nav-link:hover svg,
+.nav-link.active svg,
+.menu li > .nav-link.active svg {
+  color: #fff;
+}
+
+/* Portadas de libro (Integrantes 3 y 4) */
+.book-cover {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  border-radius: 0.5rem;
+  overflow: hidden;
+  background: linear-gradient(145deg, var(--c1), var(--c2));
+  color: #fff;
+  padding: 0.9rem 0.7rem 0.7rem 1.35rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 10px 20px -16px rgba(15, 23, 42, 0.7);
+}
+.book-cover::before {
+  content: '';
+  position: absolute;
+  left: 0.55rem;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: rgba(255, 255, 255, 0.28);
+}
+.book-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(120% 80% at 85% 0%, rgba(255, 255, 255, 0.22), transparent 55%);
+}
+.book-cover .cover-title {
+  position: relative;
+  z-index: 1;
+  font-family: 'Libre Bodoni', Georgia, serif;
+  font-size: 0.95rem;
+  line-height: 1.16;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.book-cover .cover-author {
+  position: relative;
+  z-index: 1;
+  font-size: 0.58rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.book-cover.thumb {
+  width: 2.5rem;
+  padding: 0.3rem 0.2rem 0.25rem 0.5rem;
+  border-radius: 0.25rem;
+}
+.book-cover.thumb::before {
+  left: 0.22rem;
+}
+.book-cover.thumb .cover-title {
+  font-size: 0.4rem;
+  -webkit-line-clamp: 2;
+  line-height: 1.2;
+}
+.book-cover.thumb .cover-author {
+  display: none;
+}
+.book-cover.mini {
+  width: 2rem;
+  padding: 0.22rem 0.15rem 0.2rem 0.4rem;
+  border-radius: 0.2rem;
+}
+.book-cover.mini::before {
+  left: 0.18rem;
+}
+.book-cover.mini .cover-title {
+  font-size: 0.3rem;
+  -webkit-line-clamp: 2;
+  line-height: 1.2;
+}
+.book-cover.mini .cover-author {
+  display: none;
+}
+
+/* Opciones de método de pago (Integrante 4) */
+.pay-option {
+  display: block;
+  cursor: pointer;
+  border: 1px solid #e2e8f0;
+  border-radius: 0.6rem;
+  padding: 0.5rem 0.35rem;
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #475569;
+  background: #fff;
+  transition:
+    border-color 150ms ease,
+    background-color 150ms ease,
+    color 150ms ease,
+    box-shadow 150ms ease;
+}
+.pay-option:hover {
+  border-color: #94a3b8;
+}
+.pay-option:has(input:checked) {
+  border-color: #0f766e;
+  background: #f0fdfa;
+  color: #0f766e;
+  box-shadow: inset 0 0 0 1px #0f766e;
+}
+.pay-option:has(input:focus-visible) {
+  outline: 2px solid #0f766e;
+  outline-offset: 2px;
+}
+.pay-option svg {
+  display: block;
+  margin: 0 auto 0.15rem;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+/* Recibo térmico (Integrante 4) */
+.receipt {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  line-height: 1.55;
+  color: #0f172a;
+  background: #fff;
+  padding: 1.25rem;
+}
+.receipt .dashed {
+  border-top: 1px dashed #cbd5e1;
+  margin: 0.6rem 0;
+}
+.receipt-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+  font-size: 10.5px;
+}
+.receipt-row > span:first-child {
+  max-width: 72%;
+}
+.receipt-total {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+}
+.barcode {
+  height: 32px;
+  margin-top: 0.75rem;
+  background: repeating-linear-gradient(
+    90deg,
+    #0f172a 0 1.5px,
+    transparent 1.5px 3.5px,
+    #0f172a 3.5px 5.5px,
+    transparent 5.5px 8px,
+    #0f172a 8px 9px,
+    transparent 9px 12px
+  );
+}
+
+/* Entrada de vista (RouterView) */
+.view-enter-active,
+.view:not(.hidden) {
+  animation: viewIn 180ms ease-out;
+}
+@keyframes viewIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.toast-item {
+  transition:
+    opacity 250ms ease,
+    transform 250ms ease;
+}
+
+.chip-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.chip-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.print-only {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body {
+    background: #fff !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  dialog,
+  .toast-container {
+    display: none !important;
+  }
+}
