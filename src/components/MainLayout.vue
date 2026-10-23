@@ -174,7 +174,7 @@ function notifyAlerts() {
             </li>
           </ul>
 
-          <ul v-if="auth.isAdmin" class="menu w-full gap-1 p-0">
+          <ul class="menu w-full gap-1 p-0">
             <li class="menu-title px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
               Catálogo
             </li>
@@ -190,7 +190,7 @@ function notifyAlerts() {
                 </span>
               </RouterLink>
             </li>
-            <li>
+            <li v-if="auth.isAdmin">
               <RouterLink to="/categorias" class="nav-link" active-class="active">
                 <AppIcon name="tag" />
                 Categorías
