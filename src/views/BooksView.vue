@@ -2,6 +2,7 @@
   <div class="space-y-4">
     <!-- Barra Superior de Controles y Filtros -->
     <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+      <!-- Pestañas de Estado de Stock en Español -->
       <div class="flex flex-wrap items-center gap-1.5">
         <button
           type="button"
@@ -118,7 +119,7 @@
           Restablecer todos los filtros
         </button>
       </div>
-      <!-- Tabla de Libros Alimentada desde la API -->
+      <!-- Tabla de Libros -->
       <div v-else class="overflow-x-auto">
         <table class="table table-zebra w-full">
           <caption class="sr-only">
@@ -186,13 +187,13 @@
                 </span>
                 <p class="text-[10px] text-slate-400">mín. {{ book.minStock }}</p>
               </td>
-              <!-- Estado -->
+              <!-- Estado (Badge en Español) -->
               <td class="whitespace-nowrap">
                 <span :class="['badge badge-sm font-medium', book.stockStatus?.badgeClass]">
                   {{ book.stockStatus?.label }}
                 </span>
               </td>
-              <!-- Acciones -->
+              <!-- Acciones con llamada a Modales -->
               <td class="text-right pr-5 whitespace-nowrap">
                 <div class="flex items-center justify-end gap-1">
                   <button
@@ -200,6 +201,7 @@
                     class="btn btn-ghost btn-xs btn-circle text-slate-600 hover:text-primary hover:bg-primary/10"
                     :aria-label="`Editar ${book.title}`"
                     title="Editar libro"
+                    @click="openEditModal(book)"
                   >
                     <AppIcon name="edit" class="h-3.5 w-3.5" />
                   </button>
@@ -208,6 +210,7 @@
                     class="btn btn-ghost btn-xs btn-circle text-slate-400 hover:text-error hover:bg-error/10"
                     :aria-label="`Eliminar ${book.title}`"
                     title="Eliminar libro"
+                    @click="openDeleteModal(book)"
                   >
                     <AppIcon name="trash" class="h-3.5 w-3.5" />
                   </button>
@@ -262,16 +265,41 @@
         </div>
       </div>
     </div>
+    <!-- Modales incrustados con PROPS y EMITS -->
+    <BookModal
+      :is-open="isModalOpen"
+      :book-to-edit="selectedBook"
+      :categories="store.categories"
+      :is-saving="store.isSaving"
+      @close="closeModal"
+      @save="handleSaveBook"
+    />
+    <ConfirmModal
+      :is-open="isDeleteModalOpen"
+      title="Eliminar libro del catálogo"
+      :message="`¿Estás seguro de que deseas eliminar permanentemente '${bookToDelete?.title}'? Esta acción eliminará el registro de la API.`"
+      confirm-label="Eliminar definitivamente"
+      :is-loading="store.isDeleting"
+      @close="closeDeleteModal"
+      @confirm="handleConfirmDelete"
+    />
   </div>
 </template>
 
 <script setup>
-import { onMounted, watch } from 'vue'
+import { ref, onMounted, watch } from 'vue'
 import AppIcon from '@/components/AppIcon.vue'
+import BookModal from '@/components/BookModal.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useBookStore } from '@/stores/useBookStore'
 import { useLayoutStore } from '@/stores/useLayoutStore'
 const store = useBookStore()
 const layout = useLayoutStore()
+// Control del estado de los modales
+const isModalOpen = ref(false)
+const selectedBook = ref(null)
+const isDeleteModalOpen = ref(false)
+const bookToDelete = ref(null)
 // Sincronización con el Layout global
 watch(
   () => layout.searchQuery,
@@ -280,9 +308,52 @@ watch(
   },
 )
 onMounted(async () => {
-  // Carga paralela de libros y categorías desde la API mediante el ViewModel
   await Promise.all([store.fetchBooks(), store.fetchCategories()])
 })
+// Control del modal de formulario (Alta / Edición)
+function openCreateModal() {
+  selectedBook.value = null
+  isModalOpen.value = true
+}
+function openEditModal(book) {
+  selectedBook.value = { ...book }
+  isModalOpen.value = true
+}
+function closeModal() {
+  isModalOpen.value = false
+  selectedBook.value = null
+}
+async function handleSaveBook(formData) {
+  try {
+    if (selectedBook.value?.id) {
+      await store.updateBook(selectedBook.value.id, formData)
+    } else {
+      await store.createBook(formData)
+    }
+    closeModal()
+  } catch {
+    // Los errores son notificados por useToast en el store
+  }
+}
+// Control del modal de confirmación de eliminación
+function openDeleteModal(book) {
+  bookToDelete.value = book
+  isDeleteModalOpen.value = true
+}
+function closeDeleteModal() {
+  isDeleteModalOpen.value = false
+  bookToDelete.value = null
+}
+async function handleConfirmDelete() {
+  if (!bookToDelete.value?.id) return
+  try {
+    await store.deleteBook(bookToDelete.value.id)
+    closeDeleteModal()
+  } catch {
+    // Notificado en el store
+  }
+}
+// moneda
 function formatPrice(value) {
   const num = Number(value) || 0
   return `Bs. ${num.toFixed(2)}`
