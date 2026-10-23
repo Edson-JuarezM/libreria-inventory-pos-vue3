@@ -37,6 +37,7 @@
           Agotados ({{ store.stats.outOfStock }})
         </button>
       </div>
+
       <!-- Filtro por Categoría e indicador de búsqueda activa -->
       <div class="flex flex-wrap items-center gap-2">
         <span
@@ -53,6 +54,7 @@
             ✕
           </button>
         </span>
+
         <select
           :value="store.selectedCategory"
           class="select select-bordered select-sm bg-white text-xs font-medium text-slate-700 focus:border-primary shadow-xs"
@@ -66,6 +68,7 @@
         </select>
       </div>
     </div>
+
     <!-- Banner de Alerta de Stock Crítico -->
     <div
       v-if="store.stats.lowStock > 0 && store.stockFilter !== 'low_stock'"
@@ -92,6 +95,7 @@
         Ver títulos críticos
       </button>
     </div>
+
     <!-- Card Principal con Tabla DaisyUI -->
     <div class="card overflow-hidden border border-slate-200 bg-base-100 shadow-sm">
       <!-- Estado de Carga -->
@@ -99,6 +103,7 @@
         <span class="loading loading-spinner loading-lg text-primary"></span>
         <p class="text-xs font-medium text-slate-500">Cargando catálogo desde la API...</p>
       </div>
+
       <!-- Estado Vacío -->
       <div
         v-else-if="store.filteredBooks.length === 0"
@@ -119,6 +124,7 @@
           Restablecer todos los filtros
         </button>
       </div>
+
       <!-- Tabla de Libros -->
       <div v-else class="overflow-x-auto">
         <table class="table table-zebra w-full">
@@ -133,7 +139,9 @@
               <th scope="col" class="text-right font-semibold py-3.5">Precio</th>
               <th scope="col" class="text-center font-semibold py-3.5">Stock</th>
               <th scope="col" class="font-semibold py-3.5">Estado</th>
-              <th scope="col" class="text-right font-semibold py-3.5 pr-5">Acciones</th>
+              <th scope="col" class="text-right font-semibold py-3.5 pr-5">
+                <span class="sr-only">Acciones</span>
+              </th>
             </tr>
           </thead>
           <tbody class="text-sm divide-y divide-slate-100">
@@ -165,10 +173,12 @@
                   </div>
                 </div>
               </td>
+
               <!-- ISBN -->
               <td class="font-mono text-xs text-slate-600 whitespace-nowrap">
                 {{ book.isbn }}
               </td>
+
               <!-- Categoría -->
               <td>
                 <span class="inline-flex items-center gap-1.5 text-xs text-slate-700">
@@ -176,10 +186,12 @@
                   {{ book.categoryName }}
                 </span>
               </td>
+
               <!-- Precio -->
               <td class="text-right font-mono text-xs sm:text-sm font-semibold tabular text-slate-800 whitespace-nowrap">
                 {{ formatPrice(book.price) }}
               </td>
+
               <!-- Stock -->
               <td class="text-center whitespace-nowrap">
                 <span :class="['text-xs sm:text-sm font-semibold tabular', book.stockStatus?.textClass]">
@@ -187,13 +199,15 @@
                 </span>
                 <p class="text-[10px] text-slate-400">mín. {{ book.minStock }}</p>
               </td>
+
               <!-- Estado (Badge en Español) -->
               <td class="whitespace-nowrap">
                 <span :class="['badge badge-sm font-medium', book.stockStatus?.badgeClass]">
                   {{ book.stockStatus?.label }}
                 </span>
               </td>
-              <!-- Acciones con llamada a Modales -->
+
+              <!-- Acciones -->
               <td class="text-right pr-5 whitespace-nowrap">
                 <div class="flex items-center justify-end gap-1">
                   <button
@@ -220,6 +234,7 @@
           </tbody>
         </table>
       </div>
+
       <!-- Barra Inferior de Paginación -->
       <div
         v-if="store.filteredBooks.length > 0"
@@ -232,6 +247,7 @@
           <span class="font-medium text-slate-700">{{ store.filteredBooks.length }}</span>
           títulos en inventario
         </p>
+
         <!-- Join Paginador -->
         <div class="join shadow-xs">
           <button
@@ -265,7 +281,8 @@
         </div>
       </div>
     </div>
-    <!-- Modales incrustados con PROPS y EMITS -->
+
+    <!-- Modales -->
     <BookModal
       :is-open="isModalOpen"
       :book-to-edit="selectedBook"
@@ -274,6 +291,7 @@
       @close="closeModal"
       @save="handleSaveBook"
     />
+
     <ConfirmModal
       :is-open="isDeleteModalOpen"
       title="Eliminar libro del catálogo"
@@ -293,36 +311,52 @@ import BookModal from '@/components/BookModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { useBookStore } from '@/stores/useBookStore'
 import { useLayoutStore } from '@/stores/useLayoutStore'
+
 const store = useBookStore()
 const layout = useLayoutStore()
-// Control del estado de los modales
+
+// Control de modales
 const isModalOpen = ref(false)
 const selectedBook = ref(null)
 const isDeleteModalOpen = ref(false)
 const bookToDelete = ref(null)
-// Sincronización con el Layout global
+
+// Sincronización con el Layout global (Buscador y Botón Nuevo Libro del Header)
 watch(
   () => layout.searchQuery,
   (query) => {
     store.setSearch(query)
   },
 )
+
+watch(
+  () => layout.actionTick,
+  () => {
+    openCreateModal()
+  },
+)
+
 onMounted(async () => {
+  // Carga paralela de libros y categorías desde la API
   await Promise.all([store.fetchBooks(), store.fetchCategories()])
 })
-// Control del modal de formulario (Alta / Edición)
+
+// Acciones del modal de formulario
 function openCreateModal() {
   selectedBook.value = null
   isModalOpen.value = true
 }
+
 function openEditModal(book) {
   selectedBook.value = { ...book }
   isModalOpen.value = true
 }
+
 function closeModal() {
   isModalOpen.value = false
   selectedBook.value = null
 }
+
 async function handleSaveBook(formData) {
   try {
     if (selectedBook.value?.id) {
@@ -332,28 +366,32 @@ async function handleSaveBook(formData) {
     }
     closeModal()
   } catch {
-    // Los errores son notificados por useToast en el store
+    // Notificado en useBookStore
   }
 }
-// Control del modal de confirmación de eliminación
+
+// Acciones del modal de confirmación de eliminación
 function openDeleteModal(book) {
   bookToDelete.value = book
   isDeleteModalOpen.value = true
 }
+
 function closeDeleteModal() {
   isDeleteModalOpen.value = false
   bookToDelete.value = null
 }
+
 async function handleConfirmDelete() {
   if (!bookToDelete.value?.id) return
   try {
     await store.deleteBook(bookToDelete.value.id)
     closeDeleteModal()
   } catch {
-    // Notificado en el store
+    // Notificado en useBookStore
   }
 }
-// moneda
+
+// Formateador de moneda
 function formatPrice(value) {
   const num = Number(value) || 0
   return `Bs. ${num.toFixed(2)}`
