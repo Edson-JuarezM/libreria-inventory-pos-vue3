@@ -1,271 +1,399 @@
-<script setup>
-import { onMounted, ref } from 'vue'
-import { useBookStore } from '@/stores/useBookStore'
-import { bookService } from '@/services/bookService'
-import { useToast } from '@/composables/useToast'
-
-// Instanciamos el store de Pinia y el sistema de notificaciones
-const bookStore = useBookStore()
-const toast = useToast()
-
-// Estados locales para el control del Modal de Formulario (Alta / Edición)
-const isModalOpen = ref(false)
-const isEditing = ref(false)
-
-// Objeto reactivo que vincula los campos del formulario
-const bookForm = ref({
-  id: null,
-  title: '',
-  author: '',
-  isbn: '',
-  price: 0,
-  stock: 0,
-  categoryId: null,
-})
-
-// Cargar los libros automáticamente cuando la pantalla se renderice
-onMounted(() => {
-  bookStore.fetchBooks()
-})
-
-// --- FUNCIONES DE CONTROL ---
-
-// Abre el modal configurado para un nuevo registro (Alta)
-const openCreateModal = () => {
-  isEditing.value = false
-  bookForm.value = {
-    id: null,
-    title: '',
-    author: '',
-    isbn: '',
-    price: 0,
-    stock: 0,
-    categoryId: null,
-  }
-  isModalOpen.value = true
-}
-
-// Abre el modal cargando la información de un libro existente (Modificación)
-const openEditModal = (book) => {
-  isEditing.value = true
-  // Copiamos las propiedades para evitar modificar la tabla directamente antes de guardar
-  bookForm.value = { ...book }
-  isModalOpen.value = true
-}
-
-// Cierra el modal de forma segura
-const closeModal = () => {
-  isModalOpen.value = false
-}
-
-// Procesa el guardado del formulario (Crea o Edita usando el servicio)
-const handleSaveBook = async () => {
-  try {
-    if (isEditing.value) {
-      await bookService.update(bookForm.value.id, bookForm.value)
-    } else {
-      await bookService.create(bookForm.value)
-    }
-    closeModal()
-    await bookStore.fetchBooks() // Refresca la tabla automáticamente
-    toast.success(isEditing.value ? 'Libro actualizado con éxito' : 'Libro creado con éxito')
-  } catch {
-    toast.error('Ocurrió un error al procesar la solicitud.')
-  }
-}
-
-// Elimina un registro del catálogo tras confirmación (Baja)
-const handleDeleteBook = async (id) => {
-  if (confirm('¿Está seguro de que desea eliminar este artículo del catálogo?')) {
-    try {
-      await bookService.delete(id)
-      await bookStore.fetchBooks() // Refresca la tabla
-      toast.success('Artículo eliminado del catálogo')
-    } catch {
-      toast.error('Error al intentar eliminar el artículo.')
-    }
-  }
-}
-</script>
-
 <template>
-  <div class="container-catalogo">
-    <!-- Encabezado Principal -->
-    <header class="header-seccion">
-      <div>
-        <h1>📚 Catálogo de Libros y Artículos</h1>
-        <p>Módulo de administración de inventario general.</p>
+  <div class="space-y-4">
+    <!-- Barra Superior de Controles y Filtros -->
+    <div class="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+      <!-- Pestañas de Estado de Stock en Español -->
+      <div class="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          class="btn btn-xs rounded-full px-3"
+          :class="store.stockFilter === 'all' ? 'btn-neutral' : 'btn-ghost text-slate-600'"
+          @click="store.setStockFilter('all')"
+        >
+          Todos ({{ store.stats.total }})
+        </button>
+        <button
+          type="button"
+          class="btn btn-xs rounded-full px-3"
+          :class="store.stockFilter === 'in_stock' ? 'btn-success text-white' : 'btn-ghost text-slate-600'"
+          @click="store.setStockFilter('in_stock')"
+        >
+          Disponibles ({{ store.stats.inStock }})
+        </button>
+        <button
+          type="button"
+          class="btn btn-xs rounded-full px-3"
+          :class="store.stockFilter === 'low_stock' ? 'btn-error text-white' : 'btn-ghost text-slate-600'"
+          @click="store.setStockFilter('low_stock')"
+        >
+          Stock Crítico ({{ store.stats.lowStock }})
+        </button>
+        <button
+          type="button"
+          class="btn btn-xs rounded-full px-3"
+          :class="store.stockFilter === 'out_of_stock' ? 'btn-neutral' : 'btn-ghost text-slate-600'"
+          @click="store.setStockFilter('out_of_stock')"
+        >
+          Agotados ({{ store.stats.outOfStock }})
+        </button>
       </div>
-      <button @click="openCreateModal" class="btn-primary">
-        ➕ Agregar Nuevo Artículo
-      </button>
-    </header>
 
-    <!-- Alerta de Stock Crítico Global -->
-    <div v-if="bookStore.criticalStockCount > 0" class="alerta-critica">
-      ⚠️ ¡Atención! Hay <strong>{{ bookStore.criticalStockCount }}</strong> artículos en estado de Stock Crítico.
-    </div>
+      <!-- Filtro por Categoría e indicador de búsqueda activa -->
+      <div class="flex flex-wrap items-center gap-2">
+        <span
+          v-if="store.searchQuery"
+          class="badge badge-sm badge-info badge-outline gap-1 text-xs"
+        >
+          Búsqueda: "{{ store.searchQuery }}"
+          <button
+            type="button"
+            class="cursor-pointer ml-1 hover:text-error"
+            title="Limpiar búsqueda"
+            @click="store.setSearch('')"
+          >
+            ✕
+          </button>
+        </span>
 
-    <!-- SECCIÓN DE FILTROS DINÁMICOS (RF-08) -->
-    <section class="barra-filtros">
-      <div class="grupo-filtro">
-        <label>Búsqueda rápida</label>
-        <input 
-          v-model="bookStore.filters.searchQuery" 
-          type="text" 
-          placeholder="Buscar por título o ISBN..." 
-        />
-      </div>
-
-      <div class="grupo-filtro">
-        <label>Estado del Inventario</label>
-        <select v-model="bookStore.filters.stockStatus">
-          <option value="all">Todos los estados</option>
-          <option value="available">Disponible (> 5 unidades)</option>
-          <option value="critical">🚨 Stock Crítico (1 a 5 unidades)</option>
-          <option value="out">❌ Agotado (0 unidades)</option>
+        <select
+          :value="store.selectedCategory"
+          class="select select-bordered select-sm bg-white text-xs font-medium text-slate-700 focus:border-primary shadow-xs"
+          aria-label="Filtrar libros por categoría"
+          @change="store.setCategory($event.target.value)"
+        >
+          <option value="all">Todas las categorías</option>
+          <option v-for="cat in store.categories" :key="cat.id" :value="cat.id">
+            {{ cat.name }}
+          </option>
         </select>
       </div>
+    </div>
 
-      <div class="grupo-filtro-rango">
-        <label>Rango de Precio</label>
-        <div class="inputs-rango">
-          <input v-model="bookStore.filters.minPrice" type="number" placeholder="Mín" />
-          <input v-model="bookStore.filters.maxPrice" type="number" placeholder="Máx" />
+    <!-- Banner de Alerta de Stock Crítico -->
+    <div
+      v-if="store.stats.lowStock > 0 && store.stockFilter !== 'low_stock'"
+      class="flex flex-col items-start justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-5 py-3 sm:flex-row sm:items-center shadow-xs"
+    >
+      <div class="flex items-center gap-3">
+        <span class="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-700">
+          <AppIcon name="alert" class="h-4 w-4" />
+        </span>
+        <div>
+          <p class="text-xs sm:text-sm font-semibold text-amber-900">
+            Atención: {{ store.stats.lowStock }} título con stock crítico por debajo del mínimo permitido
+          </p>
+          <p class="text-[11px] text-amber-800/80">
+            Revisa el inventario para coordinar pedidos de reposición con los distribuidores.
+          </p>
         </div>
       </div>
-
-      <button @click="bookStore.resetFilters" class="btn-secondary">
-        Limpiar Filtros
+      <button
+        type="button"
+        class="btn btn-xs btn-outline border-amber-300 text-amber-800 hover:bg-amber-100"
+        @click="store.setStockFilter('low_stock')"
+      >
+        Ver títulos críticos
       </button>
-    </section>
+    </div>
 
-    <!-- LISTADO / TABLA DE DATOS (RF-07) -->
-    <main class="tabla-contenedor">
-      <div v-if="bookStore.loading" class="estado-mensaje">Cargando catálogo...</div>
-      <div v-else-if="bookStore.error" class="estado-mensaje error-mensaje">
-        {{ bookStore.error }}
+    <!-- Card Principal con Tabla DaisyUI -->
+    <div class="card overflow-hidden border border-slate-200 bg-base-100 shadow-sm">
+      <!-- Estado de Carga -->
+      <div v-if="store.isLoading" class="flex flex-col items-center justify-center py-20 gap-3">
+        <span class="loading loading-spinner loading-lg text-primary"></span>
+        <p class="text-xs font-medium text-slate-500">Cargando catálogo desde la API...</p>
       </div>
-      <div v-else-if="bookStore.filteredBooks.length === 0" class="estado-mensaje">
-        No se encontraron libros o artículos que coincidan con los filtros.
+
+      <!-- Estado Vacío -->
+      <div
+        v-else-if="store.filteredBooks.length === 0"
+        class="flex flex-col items-center justify-center py-16 px-4 text-center"
+      >
+        <span class="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-100 text-slate-400">
+          <AppIcon name="book" class="h-6 w-6" />
+        </span>
+        <h3 class="mt-3 text-base font-semibold text-slate-800">No se encontraron libros</h3>
+        <p class="mt-1 max-w-sm text-xs text-slate-500">
+          No hay libros que coincidan con los filtros seleccionados o el término de búsqueda actual.
+        </p>
+        <button
+          type="button"
+          class="btn btn-outline btn-xs mt-4"
+          @click="store.resetFilters"
+        >
+          Restablecer todos los filtros
+        </button>
       </div>
-      
-      <table v-else class="tabla-datos">
-        <thead>
-          <tr>
-            <th>Título / Artículo</th>
-            <th>Autor / Marca</th>
-            <th>ISBN / Código</th>
-            <th>Precio</th>
-            <th>Stock</th>
-            <th>Estado</th>
-            <th>Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="book in bookStore.filteredBooks" :key="book.id">
-            <td class="texto-principal">{{ book.title }}</td>
-            <td>{{ book.author }}</td>
-            <td class="codigo-isbn">{{ book.isbn }}</td>
-            <td>${{ book.price.toFixed(2) }}</td>
-            <td>{{ book.stock }} u.</td>
-            <!-- Alertas Visuales de Stock (RF-08) -->
-            <td>
-              <span v-if="book.stock === 0" class="badge badge-danger">Agotado</span>
-              <span v-else-if="book.stock <= 5" class="badge badge-warning">Stock Crítico</span>
-              <span v-else class="badge badge-success">Disponible</span>
-            </td>
-            <!-- Acciones CRUD -->
-            <td class="celda-acciones">
-              <button @click="openEditModal(book)" class="btn-icon-edit" title="Editar">✏️</button>
-              <button @click="handleDeleteBook(book.id)" class="btn-icon-delete" title="Eliminar">🗑️</button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </main>
 
-    <!-- MODAL INTERACTIVO DE ALTA / EDICIÓN (RF-07) -->
-    <div v-if="isModalOpen" class="modal-overlay">
-      <div class="modal-content">
-        <h2>{{ isEditing ? '📝 Editar Artículo' : '➕ Registrar Nuevo Artículo' }}</h2>
-        
-        <form @submit.prevent="handleSaveBook" class="formulario-modal">
-          <div class="campo">
-            <label>Título del Libro o Artículo *</label>
-            <input v-model="bookForm.title" type="text" required placeholder="Ej: Cien años de soledad" />
-          </div>
+      <!-- Tabla de Libros -->
+      <div v-else class="overflow-x-auto">
+        <table class="table table-zebra w-full">
+          <caption class="sr-only">
+            Listado de libros con ISBN, categoría, precio, stock y estado
+          </caption>
+          <thead>
+            <tr class="border-b border-slate-200 bg-slate-50/70 text-[11px] uppercase tracking-wider text-slate-500">
+              <th scope="col" class="font-semibold py-3.5 pl-5">Libro</th>
+              <th scope="col" class="font-semibold py-3.5">ISBN</th>
+              <th scope="col" class="font-semibold py-3.5">Categoría</th>
+              <th scope="col" class="text-right font-semibold py-3.5">Precio</th>
+              <th scope="col" class="text-center font-semibold py-3.5">Stock</th>
+              <th scope="col" class="font-semibold py-3.5">Estado</th>
+              <th scope="col" class="text-right font-semibold py-3.5 pr-5">
+                <span class="sr-only">Acciones</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody class="text-sm divide-y divide-slate-100">
+            <tr
+              v-for="book in store.paginatedBooks"
+              :key="book.id"
+              class="hover:bg-teal-50/20 transition-colors"
+            >
+              <!-- Portada, Título y Autor -->
+              <td class="pl-5 py-3">
+                <div class="flex items-center gap-3">
+                  <div
+                    class="h-12 w-9 flex-shrink-0 overflow-hidden rounded bg-slate-100 border border-slate-200 shadow-xs relative"
+                  >
+                    <img
+                      :src="book.image"
+                      :alt="book.title"
+                      class="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  </div>
+                  <div class="min-w-0 max-w-xs sm:max-w-sm">
+                    <p class="truncate font-semibold text-slate-900 text-xs sm:text-sm">
+                      {{ book.title }}
+                    </p>
+                    <p class="truncate text-xs text-slate-500">
+                      {{ book.author }}
+                    </p>
+                  </div>
+                </div>
+              </td>
 
-          <div class="campo">
-            <label>Autor o Marca *</label>
-            <input v-model="bookForm.author" type="text" required placeholder="Ej: Gabriel García Márquez" />
-          </div>
+              <!-- ISBN -->
+              <td class="font-mono text-xs text-slate-600 whitespace-nowrap">
+                {{ book.isbn }}
+              </td>
 
-          <div class="campo">
-            <label>Código ISBN / Identificador *</label>
-            <input v-model="bookForm.isbn" type="text" required placeholder="Ej: 9780307474728" />
-          </div>
+              <!-- Categoría -->
+              <td>
+                <span class="inline-flex items-center gap-1.5 text-xs text-slate-700">
+                  <span class="h-2 w-2 rounded-full bg-primary/70"></span>
+                  {{ book.categoryName }}
+                </span>
+              </td>
 
-          <div class="filas-identicas">
-            <div class="campo">
-              <label>Precio ($) *</label>
-              <input v-model.number="bookForm.price" type="number" step="0.01" min="0" required />
-            </div>
+              <!-- Precio -->
+              <td class="text-right font-mono text-xs sm:text-sm font-semibold tabular text-slate-800 whitespace-nowrap">
+                {{ formatPrice(book.price) }}
+              </td>
 
-            <div class="campo">
-              <label>Cantidad en Stock *</label>
-              <input v-model.number="bookForm.stock" type="number" min="0" required />
-            </div>
-          </div>
+              <!-- Stock -->
+              <td class="text-center whitespace-nowrap">
+                <span :class="['text-xs sm:text-sm font-semibold tabular', book.stockStatus?.textClass]">
+                  {{ book.stock }}
+                </span>
+                <p class="text-[10px] text-slate-400">mín. {{ book.minStock }}</p>
+              </td>
 
-          <div class="modal-acciones">
-            <button type="button" @click="closeModal" class="btn-cancelar">Cancelar</button>
-            <button type="submit" class="btn-guardar">
-              {{ isEditing ? 'Guardar Cambios' : 'Registrar' }}
-            </button>
-          </div>
-        </form>
+              <!-- Estado (Badge en Español) -->
+              <td class="whitespace-nowrap">
+                <span :class="['badge badge-sm font-medium', book.stockStatus?.badgeClass]">
+                  {{ book.stockStatus?.label }}
+                </span>
+              </td>
+
+              <!-- Acciones -->
+              <td class="text-right pr-5 whitespace-nowrap">
+                <div class="flex items-center justify-end gap-1">
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs btn-circle text-slate-600 hover:text-primary hover:bg-primary/10"
+                    :aria-label="`Editar ${book.title}`"
+                    title="Editar libro"
+                    @click="openEditModal(book)"
+                  >
+                    <AppIcon name="edit" class="h-3.5 w-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    class="btn btn-ghost btn-xs btn-circle text-slate-400 hover:text-error hover:bg-error/10"
+                    :aria-label="`Eliminar ${book.title}`"
+                    title="Eliminar libro"
+                    @click="openDeleteModal(book)"
+                  >
+                    <AppIcon name="trash" class="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Barra Inferior de Paginación -->
+      <div
+        v-if="store.filteredBooks.length > 0"
+        class="flex flex-col items-center justify-between gap-3 border-t border-slate-200 px-5 py-3.5 sm:flex-row bg-slate-50/40"
+      >
+        <p class="text-xs text-slate-500">
+          Mostrando
+          <span class="font-medium text-slate-700">{{ store.paginatedBooks.length }}</span>
+          de
+          <span class="font-medium text-slate-700">{{ store.filteredBooks.length }}</span>
+          títulos en inventario
+        </p>
+
+        <!-- Join Paginador -->
+        <div class="join shadow-xs">
+          <button
+            type="button"
+            class="btn join-item btn-xs sm:btn-sm btn-ghost"
+            :disabled="store.currentPage === 1"
+            aria-label="Página anterior"
+            @click="store.setPage(store.currentPage - 1)"
+          >
+            «
+          </button>
+          <button
+            v-for="page in store.totalPages"
+            :key="page"
+            type="button"
+            class="btn join-item btn-xs sm:btn-sm"
+            :class="page === store.currentPage ? 'btn-primary' : 'btn-ghost'"
+            @click="store.setPage(page)"
+          >
+            {{ page }}
+          </button>
+          <button
+            type="button"
+            class="btn join-item btn-xs sm:btn-sm btn-ghost"
+            :disabled="store.currentPage === store.totalPages"
+            aria-label="Página siguiente"
+            @click="store.setPage(store.currentPage + 1)"
+          >
+            »
+          </button>
+        </div>
       </div>
     </div>
+
+    <!-- Modales -->
+    <BookModal
+      :is-open="isModalOpen"
+      :book-to-edit="selectedBook"
+      :categories="store.categories"
+      :is-saving="store.isSaving"
+      @close="closeModal"
+      @save="handleSaveBook"
+    />
+
+    <ConfirmModal
+      :is-open="isDeleteModalOpen"
+      title="Eliminar libro del catálogo"
+      :message="`¿Estás seguro de que deseas eliminar permanentemente '${bookToDelete?.title}'? Esta acción eliminará el registro de la API.`"
+      confirm-label="Eliminar definitivamente"
+      :is-loading="store.isDeleting"
+      @close="closeDeleteModal"
+      @confirm="handleConfirmDelete"
+    />
   </div>
 </template>
 
-<style scoped>
-/* Estilos estructurales básicos para que tu interfaz se vea limpia y moderna */
-.container-catalogo { padding: 20px; font-family: sans-serif; }
-.header-seccion { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-.alerta-critica { background-color: #fee2e2; color: #991b1b; padding: 12px; border-radius: 6px; margin-bottom: 20px; border: 1px solid #fca5a5; }
-.barra-filtros { display: flex; gap: 15px; background: #f3f4f6; padding: 15px; border-radius: 8px; align-items: flex-end; margin-bottom: 20px; flex-wrap: wrap; }
-.grupo-filtro { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 150px; }
-.grupo-filtro-rango { display: flex; flex-direction: column; gap: 5px; }
-.inputs-rango { display: flex; gap: 5px; width: 150px; }
-input, select { padding: 8px; border: 1px solid #d1d5db; border-radius: 4px; }
-.btn-primary { background: #2563eb; color: white; padding: 10px 15px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-.btn-secondary { height: 38px; padding: 0 15px; background: #6b7280; color: white; border: none; border-radius: 4px; cursor: pointer; }
-.tabla-contenedor { background: white; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden; }
-.tabla-datos { width: 100%; border-collapse: collapse; text-align: left; }
-.tabla-datos th, .tabla-datos td { padding: 12px; border-bottom: 1px solid #e5e7eb; }
-.tabla-datos th { background: #f9fafb; color: #374151; }
-.texto-principal { font-weight: bold; color: #111827; }
-.codigo-isbn { font-family: monospace; color: #4b5563; }
-.badge { padding: 4px 8px; border-radius: 12px; font-size: 0.85em; font-weight: bold; }
-.badge-success { background: #dcfce7; color: #166534; }
-.badge-warning { background: #fef9c3; color: #854d0e; }
-.badge-danger { background: #fee2e2; color: #991b1b; }
-.celda-acciones { display: flex; gap: 10px; }
-.btn-icon-edit, .btn-icon-delete { background: none; border: none; cursor: pointer; font-size: 1.2em; }
-.estado-mensaje { padding: 30px; text-align: center; color: #6b7280; }
-.error-mensaje { color: #991b1b; }
-/* Modal Styles */
-.modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; justify-content: center; align-items: center; z-index: 1000; }
-.modal-content { background: white; padding: 25px; border-radius: 8px; width: 100%; max-width: 500px; }
-.modal-content h2 { margin-top: 0; margin-bottom: 20px; color: #111827; }
-.formulario-modal { display: flex; flex-direction: column; gap: 15px; }
-.campo { display: flex; flex-direction: column; gap: 5px; }
-.campo label { font-size: 0.9em; font-weight: 600; color: #374151; }
-.filas-identicas { display: flex; gap: 15px; }
-.filas-identicas .campo { flex: 1; }
-.modal-acciones { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
-.btn-cancelar { padding: 10px 15px; background: #e5e7eb; color: #374151; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-.btn-guardar { padding: 10px 15px; background: #2563eb; color: white; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; }
-</style>
+<script setup>
+import { ref, onMounted, watch } from 'vue'
+import AppIcon from '@/components/AppIcon.vue'
+import BookModal from '@/components/BookModal.vue'
+import ConfirmModal from '@/components/ConfirmModal.vue'
+import { useBookStore } from '@/stores/useBookStore'
+import { useLayoutStore } from '@/stores/useLayoutStore'
+
+const store = useBookStore()
+const layout = useLayoutStore()
+
+// Control de modales
+const isModalOpen = ref(false)
+const selectedBook = ref(null)
+const isDeleteModalOpen = ref(false)
+const bookToDelete = ref(null)
+
+// Sincronización con el Layout global (Buscador y Botón Nuevo Libro del Header)
+watch(
+  () => layout.searchQuery,
+  (query) => {
+    store.setSearch(query)
+  },
+)
+
+watch(
+  () => layout.actionTick,
+  () => {
+    openCreateModal()
+  },
+)
+
+onMounted(async () => {
+  // Carga paralela de libros y categorías desde la API
+  await Promise.all([store.fetchBooks(), store.fetchCategories()])
+})
+
+// Acciones del modal de formulario
+function openCreateModal() {
+  selectedBook.value = null
+  isModalOpen.value = true
+}
+
+function openEditModal(book) {
+  selectedBook.value = { ...book }
+  isModalOpen.value = true
+}
+
+function closeModal() {
+  isModalOpen.value = false
+  selectedBook.value = null
+}
+
+async function handleSaveBook(formData) {
+  try {
+    if (selectedBook.value?.id) {
+      await store.updateBook(selectedBook.value.id, formData)
+    } else {
+      await store.createBook(formData)
+    }
+    closeModal()
+  } catch {
+    // Notificado en useBookStore
+  }
+}
+
+// Acciones del modal de confirmación de eliminación
+function openDeleteModal(book) {
+  bookToDelete.value = book
+  isDeleteModalOpen.value = true
+}
+
+function closeDeleteModal() {
+  isDeleteModalOpen.value = false
+  bookToDelete.value = null
+}
+
+async function handleConfirmDelete() {
+  if (!bookToDelete.value?.id) return
+  try {
+    await store.deleteBook(bookToDelete.value.id)
+    closeDeleteModal()
+  } catch {
+    // Notificado en useBookStore
+  }
+}
+
+// Formateador de moneda
+function formatPrice(value) {
+  const num = Number(value) || 0
+  return `Bs. ${num.toFixed(2)}`
+}
+</script>

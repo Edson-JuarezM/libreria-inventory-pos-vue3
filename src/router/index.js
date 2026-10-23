@@ -46,6 +46,7 @@ const routes = [
           search: true,
           placeholder: 'Buscar por título, autor o ISBN…',
           action: { label: 'Nuevo libro', icon: 'plus' },
+          roles: ['admin'],
           icon: 'book',
           owner: 'Integrante 3',
         },
