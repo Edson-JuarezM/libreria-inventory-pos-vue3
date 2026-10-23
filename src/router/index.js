@@ -38,7 +38,7 @@ const routes = [
       {
         path: 'libros',
         name: 'libros',
-        component: () => import('@/views/PlaceholderView.vue'),
+        component: () => import('@/views/BooksView.vue'),
         meta: {
           title: 'Libros',
           subtitle: 'Gestiona el catálogo y los niveles de stock',
