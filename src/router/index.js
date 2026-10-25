@@ -25,7 +25,7 @@ const routes = [
       {
         path: 'pos',
         name: 'pos',
-        component: () => import('@/views/PlaceholderView.vue'),
+        component: () => import('@/views/PosView.vue'),
         meta: {
           title: 'Punto de venta',
           subtitle: 'Cobra rápido y mantén el inventario al día',
@@ -44,7 +44,7 @@ const routes = [
           title: 'Libros',
           subtitle: 'Gestiona el catálogo y los niveles de stock',
           search: true,
-          placeholder: 'Buscar por título, autor o ISBN…',
+          placeholder: 'Buscar por título, autor o ISBN...',
           action: { label: 'Nuevo libro', icon: 'plus' },
           roles: ['admin'],
           icon: 'book',
@@ -59,7 +59,7 @@ const routes = [
           title: 'Categorías',
           subtitle: 'Organiza el catálogo por género y colección',
           search: true,
-          placeholder: 'Buscar categoría…',
+          placeholder: 'Buscar categoría...',
           action: { label: 'Nueva categoría', icon: 'plus' },
           roles: ['admin'],
           icon: 'tag',
@@ -69,7 +69,7 @@ const routes = [
       {
         path: 'reportes',
         name: 'reportes',
-        component: () => import('@/views/PlaceholderView.vue'),
+        component: () => import('@/views/ReportsView.vue'),
         meta: {
           title: 'Reportes',
           subtitle: 'Resumen de ventas, inventario y alertas',

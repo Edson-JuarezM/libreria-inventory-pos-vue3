@@ -1,0 +1,49 @@
+.print-only {
+  display: none;
+}
+
+@page {
+  margin: 12mm;
+}
+
+@page receipt {
+  size: 80mm auto;
+  margin: 3mm;
+}
+
+@media print {
+  body > *:not(.print-area) {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  .print-area {
+    background: #fff;
+    color: #000;
+  }
+
+  .print-area.receipt {
+    page: receipt;
+    width: 74mm;
+    margin: 0 auto;
+  }
+
+  .print-area table {
+    width: 100%;
+  }
+
+  .print-area tr {
+    break-inside: avoid;
+  }
+
+  .print-area section {
+    break-inside: avoid-page;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+}
