@@ -38,6 +38,7 @@ const routes = [
       {
         path: 'libros',
         name: 'libros',
+        alias: 'catalogo',
         component: () => import('@/views/BooksView.vue'),
         meta: {
           title: 'Libros',
