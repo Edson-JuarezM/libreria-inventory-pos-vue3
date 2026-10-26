@@ -54,7 +54,7 @@ const routes = [
       {
         path: 'categorias',
         name: 'categorias',
-        component: () => import('@/views/PlaceholderView.vue'),
+        component: () => import('@/views/CategoriesView.vue'),
         meta: {
           title: 'Categorías',
           subtitle: 'Organiza el catálogo por género y colección',

@@ -224,9 +224,9 @@ export const CATEGORY_NAMES = {
 }
 
 export function translateCategory(catIdOrName) {
-  if (!catIdOrName) return 'Novela y Ficción'
+  if (!catIdOrName) return 'Sin categoría'
   const key = String(catIdOrName).toLowerCase().trim()
-  return CATEGORY_NAMES[catIdOrName] || CATEGORY_NAMES[key] || 'Literatura General'
+  return CATEGORY_NAMES[catIdOrName] || CATEGORY_NAMES[key] || String(catIdOrName).trim()
 }
 
 //URLs de imágenes de Platzi API
