@@ -1,35 +1,13 @@
 import apiClient from './apiClient'
-import { toBook, toStockPayload } from '../models/BookMapper'
+import { bookService } from './bookService'
+import { BookMapper, readStockMap, writeStockMap, toStockPayload } from '../models/BookMapper'
 import { SAMPLE_BOOKS } from '../models/sampleBooks'
 
-const unwrap = (response) => response?.data ?? response
-
-const PAGE_SIZE = 100
-const MAX_PAGES = 10
-const STOCK_KEY = 'libreria:sample-stock'
-
-export const CATALOG_LIMIT = 6
+export const CATALOG_LIMIT = 8
 
 export function errorMessage(error, fallback = 'No se pudo completar la operación.') {
   const msg = error?.response?.data?.message
   return Array.isArray(msg) ? msg.join(', ') : msg || error?.message || fallback
-}
-
-function readStockMap() {
-  try {
-    return JSON.parse(localStorage.getItem(STOCK_KEY)) ?? {}
-  } catch {
-    return {}
-  }
-}
-
-function writeStockMap(map) {
-  try {
-    localStorage.setItem(STOCK_KEY, JSON.stringify(map))
-    return true
-  } catch {
-    return false
-  }
 }
 
 function loadSampleBooks() {
@@ -42,36 +20,36 @@ function saveSampleStock(book, stock) {
   return { ...book, stock }
 }
 
-async function fetchApiBooks() {
-  const books = []
-  for (let page = 0; page < MAX_PAGES; page++) {
-    const chunk = unwrap(
-      await apiClient.get('/products', { params: { offset: page * PAGE_SIZE, limit: PAGE_SIZE } }),
-    )
-    books.push(...chunk.map(toBook).filter((book) => book.isbn))
-    if (chunk.length < PAGE_SIZE) break
-  }
-  return books
-}
-
 export async function fetchCatalog() {
   try {
-    const books = await fetchApiBooks()
-    if (books.length) return books.slice(0, CATALOG_LIMIT)
-  } catch {
-    return loadSampleBooks()
+    const data = await bookService.getAll({ limit: 8, offset: 0 })
+    if (Array.isArray(data) && data.length) {
+      return BookMapper.toDomainList(data)
+    }
+  } catch (err) {
+    console.warn('Fallo al conectar con la API en fetchCatalog, usando fallback:', err)
   }
   return loadSampleBooks()
 }
 
 async function readFresh(book) {
-  if (book.local) return loadSampleBooks().find((b) => b.id === book.id)
-  return toBook(unwrap(await apiClient.get(`/products/${book.id}`)))
+  const map = readStockMap()
+  if (map[book.id] !== undefined) {
+    return { ...book, stock: map[book.id] }
+  }
+  return book
 }
 
 async function writeStock(book, stock) {
-  if (book.local) return saveSampleStock(book, stock)
-  return toBook(unwrap(await apiClient.put(`/products/${book.id}`, toStockPayload(book, stock))))
+  saveSampleStock(book, stock)
+  try {
+    if (!book.local) {
+      await apiClient.put(`/products/${book.id}`, toStockPayload(book, stock))
+    }
+  } catch (err) {
+    console.warn(`No se pudo sincronizar el stock del libro ${book.id} con la API:`, err)
+  }
+  return { ...book, stock }
 }
 
 export async function discountStock(lines) {

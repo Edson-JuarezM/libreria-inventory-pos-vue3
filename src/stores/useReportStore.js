@@ -1,15 +1,19 @@
 import { defineStore } from 'pinia'
 import { computed, reactive, ref } from 'vue'
-import { errorMessage, fetchCatalog } from '../services/saleService'
+import { errorMessage } from '../services/saleService'
 import { PAYMENT_METHODS } from '../models/Sale'
 import { useSaleStore } from './useSaleStore'
+import { useBookStore } from './useBookStore'
+import { useCategoryStore } from './useCategoryStore'
 
 const csvCell = (value) => `"${String(value ?? '').replace(/"/g, '""')}"`
 
 export const useReportStore = defineStore('reports', () => {
   const saleStore = useSaleStore()
+  const bookStore = useBookStore()
+  const categoryStore = useCategoryStore()
 
-  const books = ref([])
+  const books = computed(() => bookStore.books)
   const loading = ref(false)
   const error = ref('')
   const filters = reactive({ categoryId: '', from: '', to: '', payment: '' })
@@ -30,7 +34,7 @@ export const useReportStore = defineStore('reports', () => {
       .filter((s) => inRange(s.date) && (!filters.payment || s.payment_method === filters.payment))
       .map((s) => {
         if (selectedCategory.value === null) return s
-        const items = s.items.filter((i) => i.category_id === selectedCategory.value)
+        const items = s.items.filter((i) => Number(i.category_id) === selectedCategory.value)
         return { ...s, items, total: items.reduce((sum, i) => sum + i.subtotal, 0) }
       })
       .filter((s) => s.items.length),
@@ -39,7 +43,7 @@ export const useReportStore = defineStore('reports', () => {
   const scopedBooks = computed(() =>
     selectedCategory.value === null
       ? books.value
-      : books.value.filter((b) => b.categoryId === selectedCategory.value),
+      : books.value.filter((b) => Number(b.categoryId) === selectedCategory.value),
   )
 
   const lowStockBooks = computed(() =>
@@ -51,10 +55,13 @@ export const useReportStore = defineStore('reports', () => {
   )
 
   const availableCategories = computed(() => {
+    if (categoryStore.categories.length) {
+      return categoryStore.categories.map((c) => ({ id: c.id, name: c.name }))
+    }
     const seen = new Map()
     for (const b of books.value) {
       if (b.categoryId != null && !seen.has(b.categoryId)) {
-        seen.set(b.categoryId, { id: b.categoryId, name: b.category })
+        seen.set(b.categoryId, { id: b.categoryId, name: b.categoryName || b.category })
       }
     }
     return [...seen.values()]
@@ -85,11 +92,12 @@ export const useReportStore = defineStore('reports', () => {
   const inventoryByCategory = computed(() => {
     const groups = new Map()
     for (const b of scopedBooks.value) {
-      const g = groups.get(b.category) ?? { category: b.category, titles: 0, units: 0, value: 0 }
+      const catName = b.categoryName || b.category || 'Sin categoría'
+      const g = groups.get(catName) ?? { category: catName, titles: 0, units: 0, value: 0 }
       g.titles++
       g.units += b.stock
       g.value += b.price * b.stock
-      groups.set(b.category, g)
+      groups.set(catName, g)
     }
     return [...groups.values()].sort((a, b) => b.value - a.value)
   })
@@ -116,7 +124,10 @@ export const useReportStore = defineStore('reports', () => {
     loading.value = true
     error.value = ''
     try {
-      books.value = await fetchCatalog()
+      await Promise.all([
+        bookStore.books.length ? Promise.resolve() : bookStore.fetchBooks(),
+        categoryStore.categories.length ? Promise.resolve() : categoryStore.fetchCategories(),
+      ])
     } catch (e) {
       error.value = errorMessage(e, 'No se pudo cargar el inventario.')
     } finally {

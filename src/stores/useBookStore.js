@@ -2,7 +2,7 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { bookService } from '@/services/bookService'
 import { categoryService } from '@/services/categoryService'
-import { BookMapper } from '@/models/BookMapper'
+import { BookMapper, calculateStockStatus } from '@/models/BookMapper'
 import { useLayoutStore } from '@/stores/useLayoutStore'
 import { useToast } from '@/composables/useToast'
 
@@ -118,15 +118,40 @@ export const useBookStore = defineStore('books', () => {
     error.value = null
     try {
       const data = await bookService.getAll({ limit: 8, offset: 0 })
-      books.value = BookMapper.toDomainList(data, 8)
+      books.value = BookMapper.toDomainList(data)
 
       layout.setBadges({ libros: books.value.length })
     } catch (err) {
       error.value = 'No se pudo cargar el catálogo de libros.'
       toast.error('Error al conectar con la API para obtener libros.')
       console.error(err)
+      try {
+        const { SAMPLE_BOOKS } = await import('@/models/sampleBooks')
+        books.value = [...SAMPLE_BOOKS]
+        layout.setBadges({ libros: books.value.length })
+      } catch (fallbackErr) {
+        console.error('Error en fallback:', fallbackErr)
+      }
     } finally {
       isLoading.value = false
+    }
+  }
+
+  //Descuenta stock reactivamente en el store central
+  function deductStock(bookId, quantity) {
+    const book = books.value.find((b) => b.id === bookId)
+    if (book) {
+      book.stock = Math.max(0, book.stock - quantity)
+      book.stockStatus = calculateStockStatus(book.stock, book.minStock)
+    }
+  }
+
+  //Establece stock reactivamente en el store central
+  function setStock(bookId, newStock) {
+    const book = books.value.find((b) => b.id === bookId)
+    if (book) {
+      book.stock = Math.max(0, newStock)
+      book.stockStatus = calculateStockStatus(book.stock, book.minStock)
     }
   }
 
@@ -290,6 +315,8 @@ export const useBookStore = defineStore('books', () => {
     createBook,
     updateBook,
     deleteBook,
+    deductStock,
+    setStock,
     setSearch,
     setCategory,
     setStockFilter,

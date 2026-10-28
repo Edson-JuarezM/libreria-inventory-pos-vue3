@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
-import { discountStock, errorMessage, fetchCatalog } from '../services/saleService'
+import { discountStock } from '../services/saleService'
 import {
   PAYMENT_METHODS,
   createSale,
@@ -10,6 +10,8 @@ import {
   receiptNumber,
 } from '../models/Sale'
 import { useSaleStore } from './useSaleStore'
+import { useBookStore } from './useBookStore'
+import { useCategoryStore } from './useCategoryStore'
 
 const normalize = (s) =>
   (s ?? '')
@@ -22,11 +24,13 @@ const emptyCard = () => ({ holder: '', number: '', expiry: '', cvv: '' })
 
 export const usePosStore = defineStore('pos', () => {
   const saleStore = useSaleStore()
+  const bookStore = useBookStore()
+  const categoryStore = useCategoryStore()
 
-  const books = ref([])
-  const loading = ref(false)
+  const books = computed(() => bookStore.books)
+  const loading = computed(() => bookStore.isLoading)
   const processing = ref(false)
-  const error = ref('')
+  const error = computed(() => bookStore.error || '')
 
   const search = ref('')
   const categoryId = ref('')
@@ -46,10 +50,13 @@ export const usePosStore = defineStore('pos', () => {
   const nextReceiptNo = computed(() => receiptNumber(saleStore.nextSequence))
 
   const availableCategories = computed(() => {
+    if (categoryStore.categories.length) {
+      return categoryStore.categories.map((c) => ({ id: c.id, name: c.name }))
+    }
     const seen = new Map()
     for (const b of books.value) {
       if (b.categoryId != null && !seen.has(b.categoryId)) {
-        seen.set(b.categoryId, { id: b.categoryId, name: b.category })
+        seen.set(b.categoryId, { id: b.categoryId, name: b.categoryName || b.category })
       }
     }
     return [...seen.values()]
@@ -60,8 +67,11 @@ export const usePosStore = defineStore('pos', () => {
     const cat = categoryId.value === '' ? null : Number(categoryId.value)
     return books.value.filter(
       (b) =>
-        (cat === null || b.categoryId === cat) &&
-        (!q || [b.title, b.author, b.isbn, b.category].some((field) => normalize(field).includes(q))),
+        (cat === null || Number(b.categoryId) === cat) &&
+        (!q ||
+          [b.title, b.author, b.isbn, b.categoryName, b.category].some((field) =>
+            normalize(field).includes(q),
+          )),
     )
   })
 
@@ -80,14 +90,13 @@ export const usePosStore = defineStore('pos', () => {
   const quantityInCart = (bookId) => cart.value.find((l) => l.bookId === bookId)?.quantity ?? 0
 
   async function loadCatalog() {
-    loading.value = true
-    error.value = ''
     try {
-      books.value = await fetchCatalog()
+      await Promise.all([
+        bookStore.books.length ? Promise.resolve() : bookStore.fetchBooks(),
+        categoryStore.categories.length ? Promise.resolve() : categoryStore.fetchCategories(),
+      ])
     } catch (e) {
-      error.value = errorMessage(e, 'No se pudo cargar el catálogo.')
-    } finally {
-      loading.value = false
+      console.warn('Error al cargar catálogo en POS:', e)
     }
   }
 
@@ -155,11 +164,11 @@ export const usePosStore = defineStore('pos', () => {
     processing.value = true
     try {
       const lines = cartLines.value.map(({ book, quantity }) => ({ book, quantity }))
-      const updatedBooks = await discountStock(lines)
+      await discountStock(lines)
 
-      updatedBooks.forEach((updated) => {
-        const i = books.value.findIndex((b) => b.id === updated.id)
-        if (i >= 0) books.value[i] = updated
+      // Actualizar el stock en el store central de libros inmediatamente
+      lines.forEach(({ book, quantity }) => {
+        bookStore.deductStock(book.id, quantity)
       })
 
       const sale = createSale({

@@ -42,35 +42,27 @@ export function encodeMeta({ isbn, author, stock, minStock, synopsis }) {
   })
 }
 
-function cleanImage(images) {
-  const raw = Array.isArray(images) ? images[0] : images
-  if (typeof raw !== 'string') return null
-  let url = raw.trim()
-  if (url.startsWith('[')) {
-    try {
-      url = JSON.parse(url)[0]
-    } catch {
-      return null
-    }
+const STOCK_KEY = 'libreria:sample-stock'
+
+export function readStockMap() {
+  try {
+    return JSON.parse(localStorage.getItem(STOCK_KEY)) ?? {}
+  } catch {
+    return {}
   }
-  return typeof url === 'string' && /^https?:\/\//.test(url) ? url : null
 }
 
-export function toBook(product) {
-  const meta = decodeMeta(product.description)
-  return {
-    id: product.id,
-    title: product.title,
-    price: Number(product.price) || 0,
-    isbn: meta.isbn,
-    author: meta.author,
-    stock: meta.stock,
-    minStock: meta.minStock,
-    synopsis: meta.synopsis,
-    categoryId: product.category?.id ?? null,
-    category: product.category?.name ?? 'Sin categoría',
-    image: cleanImage(product.images),
+export function writeStockMap(map) {
+  try {
+    localStorage.setItem(STOCK_KEY, JSON.stringify(map))
+    return true
+  } catch {
+    return false
   }
+}
+
+export function toBook(product, index = 0) {
+  return BookMapper.toDomain(product, index)
 }
 
 export function toPayload(book) {
@@ -299,6 +291,7 @@ export const BookMapper = {
     }
 
     const id = apiProduct.id
+    const stockMap = readStockMap()
 
     // Si el producto fue creado o editado por la aplicación, respeta sus datos
     if (hasCustomBookJson) {
@@ -306,7 +299,10 @@ export const BookMapper = {
       const price = Number(apiProduct.price) || 0
       const isbn = meta.isbn || `978-999${String(Math.abs(Number(id) || 1)).padStart(4, '0')}-1`
       const author = meta.author || 'Autor no especificado'
-      const stock = meta.stock !== undefined ? Math.max(0, Number(meta.stock)) : 10
+      let stock = meta.stock !== undefined ? Math.max(0, Number(meta.stock)) : 10
+      if (stockMap[id] !== undefined) {
+        stock = Math.max(0, Number(stockMap[id]))
+      }
       const minStock = meta.minStock !== undefined ? Math.max(0, Number(meta.minStock)) : 4
       const synopsis = meta.synopsis || ''
 
@@ -327,7 +323,8 @@ export const BookMapper = {
         synopsis,
         categoryId,
         categoryName,
-        category: { id: categoryId, name: categoryName },
+        category: categoryName,
+        categoryObj: { id: categoryId, name: categoryName },
         image,
         images: [image],
         stockStatus,
@@ -340,7 +337,10 @@ export const BookMapper = {
     const author = sample.author
     const isbn = sample.isbn
     const price = Number(apiProduct.price) > 0 ? Number(apiProduct.price) : sample.price
-    const stock = sample.stock
+    let stock = sample.stock
+    if (stockMap[id] !== undefined) {
+      stock = Math.max(0, Number(stockMap[id]))
+    }
     const minStock = sample.minStock
     const synopsis = sample.synopsis
     const categoryId = sample.categoryId
@@ -359,7 +359,8 @@ export const BookMapper = {
       synopsis,
       categoryId,
       categoryName,
-      category: { id: categoryId, name: categoryName },
+      category: categoryName,
+      categoryObj: { id: categoryId, name: categoryName },
       image,
       images: [image],
       stockStatus,
@@ -367,10 +368,9 @@ export const BookMapper = {
   },
 
   //Transforma una lista de productos de la API a lista de libros
-
-  toDomainList(list, maxItems = 8) {
+  toDomainList(list, maxItems = null) {
     if (!Array.isArray(list)) return []
-    const limited = list.slice(0, maxItems)
+    const limited = maxItems ? list.slice(0, maxItems) : list
     return limited.map((item, idx) => this.toDomain(item, idx)).filter(Boolean)
   },
 
